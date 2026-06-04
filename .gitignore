@@ -1,0 +1,46 @@
+# Python cache/build files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+catdog_venv/
+
+# Local environment/config overrides
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ML datasets and generated artifacts
+data/
+checkpoints/
+outputs/
+runs/
+wandb/
+mlruns/
+*.pth
+*.pt
+*.onnx
+
+# Local test/media files
+TestFile/
+
+# Editor/OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
