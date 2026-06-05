@@ -1,7 +1,7 @@
 import yaml
 import os
 import torch
-from net import MyResNet18
+from Resnet import MyResNet18
 from dataloader import get_dataloaders,get_tensor_dataloaders
 from trainer import Trainer
 

@@ -1,88 +1,96 @@
+from pathlib import Path
+
 import streamlit as st
-from PIL import Image
 import torch
+from PIL import Image
 from torchvision import transforms
 
-st.set_page_config(
-    "Dogs and Cats",
-    None,
-    "centered",
-    'auto'
-)
+from CNNnet import MyCNN
+from Resnet import MyResNet18
 
-st.title('Dogs and Cats')
-st.header("Input an image and we can tell whether is a cat or a dog!")
-st.subheader("Based on ResNet18 and PyTorch")
-st.write("by bogger")
-st.markdown("**jia cu**,*xieti*,'daimakuai',#biaoti")
-st.text("Hello World!")
-st.code("print('Hello World')",language='python')
-st.markdown("MarkDown Text")
 
-img = Image.open("TestFile\GPT.png")
+BASE_DIR = Path(__file__).resolve().parent
+CLASS_NAMES = ["猫", "狗"]
+MODEL_OPTIONS = {
+    "ResNet18": {
+        "class": MyResNet18,
+        "checkpoint": BASE_DIR / "checkpoints" / "Adam_lr0.001_CrossEntropyLoss_StepLR_best.pth",
+    },
+    "CNN": {
+        "class": MyCNN,
+        "checkpoint": BASE_DIR / "checkpoints" / "CNN_best.pth",
+    },
+}
 
-st.image(img,caption='example',width='content')
 
-st.video(r'TestFile\nige.mp4',loop=True,muted=True,width='stretch')
-st.audio(r'TestFile\nige.mp3')
+def get_device():
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-import matplotlib.pyplot as plt
-import numpy as np
 
-x = np.linspace(0,10,100)
-y = np.sin(x)
-fig, ax = plt.subplots()
-ax.plot(x,y)
-st.pyplot(fig)
+@st.cache_resource
+def load_model(model_name):
+    device = get_device()
+    model_info = MODEL_OPTIONS[model_name]
+    model = model_info["class"](num_classes=2, dropout=0.3)
 
-fig, ax = plt.subplots()
-ax.plot(x, np.sin(x), label='sin(x)')
-ax.plot(x, np.cos(x), label='cos(x)')
-ax.plot(x, np.sin(2*x), label='sin(2x)')
-ax.legend()
-st.pyplot(fig)
+    checkpoint = torch.load(model_info["checkpoint"], map_location=device, weights_only=False)
+    model.load_state_dict(checkpoint["model_state"])
+    model.to(device)
+    model.eval()
 
-fig, axes = plt.subplots(3, 1, figsize=(6, 8)) 
-axes[0].plot(x, np.sin(x))
-axes[0].set_title('sin(x)')
+    return model
 
-axes[1].plot(x, np.cos(x))
-axes[1].set_title('cos(x)')
 
-axes[2].plot(x, np.sin(2*x))
-axes[2].set_title('sin(2x)')
+def preprocess_image(image):
+    transform = transforms.Compose(
+        [
+            transforms.Resize(260),
+            transforms.CenterCrop(256),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
+    return transform(image.convert("RGB")).unsqueeze(0)
 
-st.pyplot(fig)
 
-uploaded_file = st.file_uploader("上传图片", type=["jpg","png"])
-if uploaded_file:
+def predict(image, model):
+    device = get_device()
+    image_tensor = preprocess_image(image).to(device)
+
+    with torch.no_grad():
+        logits = model(image_tensor)
+        probabilities = torch.softmax(logits, dim=1)[0]
+        confidence, predicted_index = torch.max(probabilities, dim=0)
+
+    return CLASS_NAMES[predicted_index.item()], confidence.item()
+
+
+st.set_page_config(page_title="猫狗识别", page_icon="🐱", layout="centered")
+
+st.title("猫狗识别")
+st.write("上传一张图片，选择模型后进行识别。")
+
+model_name = st.sidebar.selectbox("选择模型", list(MODEL_OPTIONS.keys()))
+image_width = st.sidebar.slider("图片显示宽度", 200, 800, 420, 20)
+checkpoint_path = MODEL_OPTIONS[model_name]["checkpoint"]
+
+if not checkpoint_path.exists():
+    st.sidebar.error(f"{model_name} 权重文件不存在")
+    st.error(f"没有找到模型文件：{checkpoint_path}")
+    if model_name == "CNN":
+        st.info("请先训练 CNN，并把最佳权重保存为 checkpoints/CNN_best.pth。")
+    st.stop()
+
+uploaded_file = st.file_uploader("上传图片", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    st.image(image, use_column_width=True)
+    st.image(image, caption="待识别图片", width=image_width)
 
-if st.button("点击预测"):
-    st.write("按钮被点击了")
+    if st.button("开始识别", type="primary"):
+        with st.spinner("正在识别..."):
+            model = load_model(model_name)
+            label, confidence = predict(image, model)
 
-threshold = st.slider("置信度阈值", min_value=0.0, max_value=1.0, value=0.5)
-num_epochs = st.number_input("训练轮数", min_value=1, max_value=100, value=10)
-
-option = st.selectbox(
-    "选择类别",
-    ["猫", "狗", "其他"]
-)
-st.write("你选择了:", option)
-
-multi_options = st.multiselect(
-    "选择多个选项",
-    ["猫", "狗", "兔子"]
-)
-
-# 列布局
-col1, col2 = st.columns(2)
-col1.header("左边列")
-col1.image("TestFile\GPT.png")
-col2.header("右边列")
-col2.image("TestFile\GPT.png")
-
-# 侧边栏
-st.sidebar.title("设置")
-confidence = st.sidebar.slider("置信度阈值", 0.0, 1.0, 0.5)
+        st.success(f"预测结果：{label}")
+        st.metric("置信度", f"{confidence:.2%}")

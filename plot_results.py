@@ -13,7 +13,7 @@ from imagegenerate import (
     plot_sample_predictions,
     plot_train_val_curves,
 )
-from net import MyResNet18
+from Resnet import MyResNet18
 from trainer import Trainer
 
 
