@@ -35,7 +35,7 @@ mlruns/
 *.pth
 *.pt
 *.onnx
-
+*.jpg
 # Local test/media files
 TestFile/
 
